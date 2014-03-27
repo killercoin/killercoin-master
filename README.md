@@ -3,7 +3,7 @@ Killercoin integration/staging tree
 
 http://killercoin.eu
 
-Copyright (c) 1014 The Killercoin Developers
+Copyright (c) 2014 The Killercoin Developers
 
 Well, you all know what Bitcoin and Litecoin and all those other Alt coins are.
 So here is Killercoin, a coin to mine if you're fed up with all the rest!
