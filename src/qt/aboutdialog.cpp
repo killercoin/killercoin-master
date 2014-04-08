@@ -23,7 +23,7 @@ void AboutDialog::setModel(ClientModel *model)
     if(model)
     {
         ui->versionLabel->setText(model->formatFullVersion());
-                ui->versionLabel2->setText("v1.2 beta, ** do not use on Main Net until final release **");
+                ui->versionLabel2->setText("v2.0");
     }
 }
 

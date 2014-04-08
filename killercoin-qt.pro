@@ -32,8 +32,8 @@ win32 {
     BOOST_LIB_PATH=C:/deps/boost_1_55_0/stage/lib
     BDB_INCLUDE_PATH=C:/deps/db-4.8.30.NC/build_unix
     BDB_LIB_PATH=C:/deps/db-4.8.30.NC/build_unix
-    OPENSSL_INCLUDE_PATH=C:/deps/openssl-1.0.1e/include
-    OPENSSL_LIB_PATH=C:/deps/openssl-1.0.1e
+    OPENSSL_INCLUDE_PATH=C:/deps/openssl-1.0.1g/include
+    OPENSSL_LIB_PATH=C:/deps/openssl-1.0.1g
     MINIUPNPC_INCLUDE_PATH=C:/deps/
     MINIUPNPC_LIB_PATH=C:/deps/miniupnpc
     QRENCODE_INCLUDE_PATH=C:/deps/qrcode-win32-3.1.1/include
@@ -73,24 +73,26 @@ win32:QMAKE_LFLAGS *= -Wl,--large-address-aware
 # i686-w64-mingw32
 win32:QMAKE_LFLAGS *= -static-libgcc -static-libstdc++
 
-USE_QRCODE=1
-# use: qmake "USE_QRCODE=1"
-# libqrencode (http://fukuchi.org/works/qrencode/index.en.html) must be installed for support
-contains(USE_QRCODE, 1) {
-    message(Building with QRCode support)
-    DEFINES += USE_QRCODE
-        INCLUDEPATH +=$$QRENCODE_INCLUDE_PATH
-        LIBS += $$join(QRENCODE_LIB_PATH,,-L) -lqrcodelib
-}
-
 #USE_QRCODE=1
 ## use: qmake "USE_QRCODE=1"
 ## libqrencode (http://fukuchi.org/works/qrencode/index.en.html) must be installed for support
 #contains(USE_QRCODE, 1) {
 #    message(Building with QRCode support)
 #    DEFINES += USE_QRCODE
-#    LIBS += -lqrencode
+#        INCLUDEPATH +=$$QRENCODE_INCLUDE_PATH
+#        LIBS += $$join(QRENCODE_LIB_PATH,,-L) -lqrcodelib
 #}
+
+USE_QRCODE=1
+# use: qmake "USE_QRCODE=1"
+# libqrencode (http://fukuchi.org/works/qrencode/index.en.html) must be installed for support
+contains(USE_QRCODE, 1) {
+    message(Building with QRCode support)
+    DEFINES += USE_QRCODE
+    macx:LIBS += -lqrencode
+    win32:INCLUDEPATH +=$$QRENCODE_INCLUDE_PATH
+    win32:LIBS += $$join(QRENCODE_LIB_PATH,,-L) -lqrcodelib
+}
 
 # use: qmake "USE_UPNP=1" ( enabled by default; default)
 #  or: qmake "USE_UPNP=0" (disabled by default)

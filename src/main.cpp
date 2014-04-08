@@ -1322,16 +1322,8 @@ unsigned int static GetNextWorkRequired_V3(const CBlockIndex* pindexLast, const 
     bnNew.SetCompact(pindexLast->nBits);
 
     // thanks to RealSolid & WDC for the basis of this code, modified by Mammix2 for Killercoin
-        //if(fNewDifficultyProtocol) {
-
             if (nActualTimespan < (retargetTimespan - (retargetTimespan/4)) ) nActualTimespan = (retargetTimespan - (retargetTimespan/4));
             if (nActualTimespan > (retargetTimespan + (retargetTimespan/2)) ) nActualTimespan = (retargetTimespan + (retargetTimespan/2));
-        //}
-        //else {
-        //	if (nActualTimespan < retargetTimespan/4) nActualTimespan = retargetTimespan/4;
-        //	if (nActualTimespan > retargetTimespan*4) nActualTimespan = retargetTimespan*4;
-        //}
-
     // Retarget
     bnNew *= nActualTimespan;
     bnNew /= retargetTimespan;
