@@ -1222,15 +1222,20 @@ int64 static GetBlockValue(int nHeight, int64 nFees)
 }
 
 
-static const int64 nTargetTimespan = 2 * 60 * 60; // KillerCoin: 2hr target time
-static const int64 nTargetSpacing = 120; // KillerCoin: seconds per block target
+static const int64 nTargetTimespan = 2 * 60 * 60; // 2hr target time
+static const int64 nTargetSpacing = 120; // seconds per block target
 static const int64 nInterval = nTargetTimespan / nTargetSpacing; //Aim to produce 60 blocks every 2 hours
+
+static const int64 nTargetTimespanV2 = 60;
+static const int64 nTargetSpacingV2 = 60;
+static const int64 nIntervalV2 = nTargetTimespanV2 / nTargetSpacingV2;
 
 
 //
 // minimum amount of work that could possibly be required nTime after
 // minimum work required was nBase
 //
+
 unsigned int ComputeMinWork(unsigned int nBase, int64 nTime)
 {
     // Testnet has min-difficulty blocks
@@ -1242,15 +1247,110 @@ unsigned int ComputeMinWork(unsigned int nBase, int64 nTime)
     bnResult.SetCompact(nBase);
     while (nTime > 0 && bnResult < bnProofOfWorkLimit)
     {
-        // Maximum 400% adjustment...
-        bnResult *= 4;
-        // ... in best-case exactly 4-times-normal target time
-        nTime -= nTargetTimespan*4;
+        if(nBestHeight+1<NDIFF_START_DIGISHIELD){
+            // Maximum 400% adjustment...
+            bnResult *= 4;
+            // ... in best-case exactly 4-times-normal target time
+            nTime -= nTargetTimespan*4;
+        } else {
+            // Maximum 10% adjustment...
+            bnResult = (bnResult * 110) / 100;
+            // ... in best-case exactly 4-times-normal target time
+            nTime -= nTargetTimespanV2*4;
+        }
     }
     if (bnResult > bnProofOfWorkLimit)
         bnResult = bnProofOfWorkLimit;
     return bnResult.GetCompact();
 }
+
+
+unsigned int static GetNextWorkRequired_V3(const CBlockIndex* pindexLast, const CBlockHeader *pblock)
+{
+    unsigned int nProofOfWorkLimit = bnProofOfWorkLimit.GetCompact();
+
+    int nHeight = pindexLast->nHeight + 1;
+    int blockstogoback = 0;
+
+    // Genesis block
+    if (pindexLast == NULL) return nProofOfWorkLimit;
+
+    //if v2.0 changes are in effect for block num, alter retarget values
+
+      int64 retargetTimespan = nTargetTimespanV2;
+      int64 retargetSpacing = nTargetSpacingV2;
+      int64 retargetInterval = nIntervalV2;
+
+
+    // Only change once per interval
+    if ((pindexLast->nHeight+1) % retargetInterval != 0){
+      // Special difficulty rule for testnet:
+        if (fTestNet){
+            // If the new block's timestamp is more than 2* 10 minutes
+            // then allow mining of a min-difficulty block.
+            if (pblock->nTime > pindexLast->nTime + retargetSpacing*2)
+                return nProofOfWorkLimit;
+        else {
+            // Return the last non-special-min-difficulty-rules-block
+            const CBlockIndex* pindex = pindexLast;
+            while (pindex->pprev && pindex->nHeight % retargetInterval != 0 && pindex->nBits == nProofOfWorkLimit)
+            pindex = pindex->pprev;
+        return pindex->nBits;
+        }
+      }
+      return pindexLast->nBits;
+    }
+
+    // DigiByte: This fixes an issue where a 51% attack can change difficulty at will.
+    // Go back the full period unless it's the first retarget after genesis. Code courtesy of Art Forz
+    blockstogoback = retargetInterval-1;
+    if ((pindexLast->nHeight+1) != retargetInterval) blockstogoback = retargetInterval;
+
+    // Go back by what we want to be 14 days worth of blocks
+    const CBlockIndex* pindexFirst = pindexLast;
+    for (int i = 0; pindexFirst && i < blockstogoback; i++)
+        pindexFirst = pindexFirst->pprev;
+    assert(pindexFirst);
+
+    // Limit adjustment step
+    int64 nActualTimespan = pindexLast->GetBlockTime() - pindexFirst->GetBlockTime();
+    printf("  nActualTimespan = %"PRI64d"  before bounds\n", nActualTimespan);
+
+
+
+    CBigNum bnNew;
+    bnNew.SetCompact(pindexLast->nBits);
+
+    // thanks to RealSolid & WDC for the basis of this code, modified by Mammix2 for Killercoin
+        //if(fNewDifficultyProtocol) {
+
+            if (nActualTimespan < (retargetTimespan - (retargetTimespan/4)) ) nActualTimespan = (retargetTimespan - (retargetTimespan/4));
+            if (nActualTimespan > (retargetTimespan + (retargetTimespan/2)) ) nActualTimespan = (retargetTimespan + (retargetTimespan/2));
+        //}
+        //else {
+        //	if (nActualTimespan < retargetTimespan/4) nActualTimespan = retargetTimespan/4;
+        //	if (nActualTimespan > retargetTimespan*4) nActualTimespan = retargetTimespan*4;
+        //}
+
+    // Retarget
+    bnNew *= nActualTimespan;
+    bnNew /= retargetTimespan;
+
+    /// debug print
+    printf("GetNextWorkRequired *DIGISHIELD* RETARGET \n");
+    printf("retargetTimespan = %"PRI64d"    nActualTimespan = %"PRI64d"\n", retargetTimespan, nActualTimespan);
+    printf("Before: %08x  %s\n", pindexLast->nBits, CBigNum().SetCompact(pindexLast->nBits).getuint256().ToString().c_str());
+    printf("After:  %08x  %s\n", bnNew.GetCompact(), bnNew.getuint256().ToString().c_str());
+
+
+    if (bnNew > bnProofOfWorkLimit)
+        bnNew = bnProofOfWorkLimit;
+
+
+
+    return bnNew.GetCompact();
+}
+
 
 unsigned int static GetNextWorkRequired_V1(const CBlockIndex* pindexLast, const CBlockHeader *pblock)
 {
@@ -1266,7 +1366,7 @@ unsigned int static GetNextWorkRequired_V1(const CBlockIndex* pindexLast, const 
         // Special difficulty rule for testnet:
         if (fTestNet)
         {
-            // If the new block's timestamp is more than 2* 10 minutes
+            // If the new block's timestamp is more than 2* nTargetSpacing minutes
             // then allow mining of a min-difficulty block.
             if (pblock->nTime > pindexLast->nTime + nTargetSpacing*2)
                 return nProofOfWorkLimit;
@@ -1283,7 +1383,7 @@ unsigned int static GetNextWorkRequired_V1(const CBlockIndex* pindexLast, const 
         return pindexLast->nBits;
     }
 
-    // Killercoin: This fixes an issue where a 51% attack can change difficulty at will.
+    // This fixes an issue where a 51% attack can change difficulty at will.
     // Go back the full period unless it's the first retarget after genesis. Code courtesy of Art Forz
     int blockstogoback = nInterval-1;
     if ((pindexLast->nHeight+1) != nInterval)
@@ -1389,24 +1489,30 @@ unsigned int static GetNextWorkRequired_V2(const CBlockIndex* pindexLast, const 
     int64 PastSecondsMax = TimeDaySeconds * 7;
     uint64 PastBlocksMin = PastSecondsMin / BlocksTargetSpacing;
     uint64 PastBlocksMax = PastSecondsMax / BlocksTargetSpacing;
-
     return KimotoGravityWell(pindexLast, pblock, BlocksTargetSpacing, PastBlocksMin, PastBlocksMax);
+
+
 }
 
 unsigned int static GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader *pblock)
 {
     int DiffMode = 1;
     if (fTestNet) {
-        if (pindexLast->nHeight+1 >= 10) { DiffMode = 2; }
+        if (pindexLast->nHeight+1 >= NDIFF_START_KGW_TESTNET) { DiffMode = 2; }
+        if (pindexLast->nHeight+1 >= NDIFF_START_DIGISHIELD_TESTNET) { DiffMode = 3; }
+        printf("Into testnet @ block # %d Diffmode: %d\n", pindexLast->nHeight+1, DiffMode );
     }
     else {
-        if (pindexLast->nHeight+1 >= 1000) { DiffMode = 2; }
+        if (pindexLast->nHeight+1 >= NDIFF_START_KGW) { DiffMode = 2; }
+        if (pindexLast->nHeight+1 >= NDIFF_START_DIGISHIELD) { DiffMode = 3; }
     }
 
     if		(DiffMode == 1) { return GetNextWorkRequired_V1(pindexLast, pblock); }
     else if	(DiffMode == 2) { return GetNextWorkRequired_V2(pindexLast, pblock); }
+    else if	(DiffMode == 3) { return GetNextWorkRequired_V3(pindexLast, pblock); }
     return GetNextWorkRequired_V2(pindexLast, pblock);
 }
+
 
 
 bool CheckProofOfWork(uint256 hash, unsigned int nBits)
